@@ -70,10 +70,42 @@ constexpr bool is_empty_callable(Tout(*_func_ptr)(Targs...))
 }
 
 template <typename Tout, typename... Targs>
+bool TryInvoke(Tout(*_func_ptr)(Targs...))
+{
+    //static_assert(is_callable_object_v<decltype(_func_ptr)>);
+    try
+    {
+        std::invoke(_func_ptr, std::forward<Targs>({})...);
+        return true;
+    }
+    catch (std::bad_function_call)
+    {
+        std::cerr << "bad_function_call" << std::endl;
+        return false;
+    }
+}
+
+template <typename Tout, typename... Targs>
 constexpr bool is_empty_callable(const std::function<Tout(Targs...)>& _func)
 {
     static_assert(is_callable_object_v<std::remove_cvref_t<decltype(_func)>>);
     return !_func;
+}
+
+template <typename Tout, typename... Targs>
+bool TryInvoke(const std::function<Tout(Targs...)>& _func)
+{
+    //static_assert(is_callable_object_v<decltype(_func)>);
+    try
+    {
+        std::invoke(_func, std::forward<Targs>({})...);
+        return true;
+    }
+    catch (std::bad_function_call)
+    {
+        std::cerr << "bad_function_call" << std::endl;
+        return false;
+    }
 }
 
 //-----------------------------------------------------------------------------------------------------------
@@ -259,18 +291,31 @@ namespace TestUnit
     static_assert(!is_callable_object_v<int*>, "");
 
     static_assert(!is_empty_callable(void_lambda), "");
+    static_assert(!is_empty_callable(void_lambda_bool), "");
     static_assert(!is_empty_callable(void_lambda_int), "");
     static_assert(!is_empty_callable(void_lambda_int_bool), "");
     static_assert(!is_empty_callable(int_lambda), "");
+    static_assert(!is_empty_callable(int_lambda_bool), "");
     static_assert(!is_empty_callable(int_lambda_int), "");
     static_assert(!is_empty_callable(int_lambda_int_bool), "");
 
     static_assert(!is_empty_callable(+void_lambda), "");
+    static_assert(!is_empty_callable(+void_lambda_bool), "");
     static_assert(!is_empty_callable(+void_lambda_int), "");
     static_assert(!is_empty_callable(+void_lambda_int_bool), "");
     static_assert(!is_empty_callable(+int_lambda), "");
+    static_assert(!is_empty_callable(+int_lambda_bool), "");
     static_assert(!is_empty_callable(+int_lambda_int), "");
     static_assert(!is_empty_callable(+int_lambda_int_bool), "");
+
+    static_assert(is_empty_callable(void_func_ptr{}), "");
+    static_assert(is_empty_callable(void_func_ptr_int{}), "");
+    static_assert(is_empty_callable(void_func_ptr_bool{}), "");
+    static_assert(is_empty_callable(void_func_ptr_int_bool{}), "");
+    static_assert(is_empty_callable(int_func_ptr{}), "");
+    static_assert(is_empty_callable(int_func_ptr_bool{}), "");
+    static_assert(is_empty_callable(int_func_ptr_int{}), "");
+    static_assert(is_empty_callable(int_func_ptr_int_bool{}), "");
 
     static void RunTestGeneric(const std::vector<std::function<bool()>> &test_collection)
     {
@@ -314,7 +359,16 @@ namespace TestUnit
             []() { return is_empty_callable(int_std_func{}); },
             []() { return is_empty_callable(int_std_func_int{}); },
             []() { return is_empty_callable(int_std_func_bool{}); },
-            []() { return is_empty_callable(int_std_func_int_bool{}); }
+            []() { return is_empty_callable(int_std_func_int_bool{}); },
+
+            []() { return TryInvoke(void_std_func{}); },
+            []() { return TryInvoke(void_std_func_int{}); },
+            []() { return TryInvoke(void_std_func_bool{}); },
+            []() { return TryInvoke(void_std_func_int_bool{}); },
+            []() { return TryInvoke(int_std_func{}); },
+            []() { return TryInvoke(int_std_func_int{}); },
+            []() { return TryInvoke(int_std_func_bool{}); },
+            []() { return TryInvoke(int_std_func_int_bool{}); }
         };
 
         RunTestGeneric(tests);
