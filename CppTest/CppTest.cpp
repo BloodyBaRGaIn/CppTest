@@ -55,57 +55,72 @@ struct is_callable_object<T, std::enable_if_t<
 template <typename T>
 static constexpr bool is_callable_object_v = is_callable_object<T>::value;
 
-template <typename T>
-constexpr bool is_empty_callable(const T& v)
+// Primary template for non-specialized cases (returns false)
+template <typename T, typename = std::enable_if_t<is_callable_object_v<T>>>
+constexpr bool is_empty_callable(T &&) noexcept
 {
-    static_assert(is_callable_object_v<T>);
     return false;
 }
 
-template <typename Tout, typename... Targs>
-constexpr bool is_empty_callable(Tout(*_func_ptr)(Targs...))
+template <typename T, typename = std::enable_if_t<is_callable_object_v<T>>>
+constexpr bool is_empty_callable(const T &) noexcept
 {
-    static_assert(is_callable_object_v<decltype(_func_ptr)>);
-    return _func_ptr == nullptr;
+    return false;
 }
 
-template <typename Tout, typename... Targs>
-bool TryInvoke(Tout(*_func_ptr)(Targs...))
+// Specialization for function pointers
+template <typename Ret, typename... Args>
+constexpr bool is_empty_callable(Ret(*func_ptr)(Args...)) noexcept
 {
-    //static_assert(is_callable_object_v<decltype(_func_ptr)>);
+    return func_ptr == nullptr;
+}
+
+// Specialization for std::function (handles both lvalues and rvalues)
+template <typename Fn>
+constexpr bool is_empty_callable(const std::function<Fn>& func) noexcept
+{
+    return !static_cast<bool>(func);
+}
+
+// Overload for rvalue std::function to catch temporaries
+template <typename Fn>
+constexpr bool is_empty_callable(std::function<Fn>&& func) noexcept
+{
+    return !static_cast<bool>(func);
+}
+
+template <typename T, typename std::enable_if_t<is_callable_object_v<T>>>
+constexpr bool is_empty_callable(const T&)
+{
+    return false;
+}
+
+template <typename Ret, typename... Args>
+constexpr bool TryInvoke(std::function<Ret(Args...)> && m_func)
+{
     try
     {
-        std::invoke(_func_ptr, std::forward<Targs>({})...);
-        return true;
+        std::invoke(m_func, std::forward<Args>({})...);
     }
     catch (std::bad_function_call)
     {
-        std::cerr << "bad_function_call" << std::endl;
         return false;
     }
+    return true;
 }
 
-template <typename Tout, typename... Targs>
-constexpr bool is_empty_callable(const std::function<Tout(Targs...)>& _func)
+template <typename Ret, typename... Args>
+constexpr bool TryInvoke(const std::function<Ret(Args...)>& m_func)
 {
-    static_assert(is_callable_object_v<std::remove_cvref_t<decltype(_func)>>);
-    return !_func;
-}
-
-template <typename Tout, typename... Targs>
-bool TryInvoke(const std::function<Tout(Targs...)>& _func)
-{
-    //static_assert(is_callable_object_v<decltype(_func)>);
     try
     {
-        std::invoke(_func, std::forward<Targs>({})...);
-        return true;
+        std::invoke(m_func, std::forward<Args>({})...);
     }
     catch (std::bad_function_call)
     {
-        std::cerr << "bad_function_call" << std::endl;
         return false;
     }
+    return true;
 }
 
 //-----------------------------------------------------------------------------------------------------------
@@ -361,14 +376,23 @@ namespace TestUnit
             []() { return is_empty_callable(int_std_func_bool{}); },
             []() { return is_empty_callable(int_std_func_int_bool{}); },
 
-            []() { return TryInvoke(void_std_func{}); },
-            []() { return TryInvoke(void_std_func_int{}); },
-            []() { return TryInvoke(void_std_func_bool{}); },
-            []() { return TryInvoke(void_std_func_int_bool{}); },
-            []() { return TryInvoke(int_std_func{}); },
-            []() { return TryInvoke(int_std_func_int{}); },
-            []() { return TryInvoke(int_std_func_bool{}); },
-            []() { return TryInvoke(int_std_func_int_bool{}); }
+            []() { return !TryInvoke(void_std_func{}); },
+            []() { return !TryInvoke(void_std_func_int{}); },
+            []() { return !TryInvoke(void_std_func_bool{}); },
+            []() { return !TryInvoke(void_std_func_int_bool{}); },
+            []() { return !TryInvoke(int_std_func{}); },
+            []() { return !TryInvoke(int_std_func_int{}); },
+            []() { return !TryInvoke(int_std_func_bool{}); },
+            []() { return !TryInvoke(int_std_func_int_bool{}); },
+
+            []() { return TryInvoke(void_std_func{StaticVoidFunc}); },
+            []() { return TryInvoke(void_std_func_int{StaticVoidFuncInt}); },
+            []() { return TryInvoke(void_std_func_bool{StaticVoidFuncBool}); },
+            []() { return TryInvoke(void_std_func_int_bool{StaticVoidFuncIntBool}); },
+            []() { return TryInvoke(int_std_func{StaticIntFunc}); },
+            []() { return TryInvoke(int_std_func_int{StaticIntFuncInt}); },
+            []() { return TryInvoke(int_std_func_bool{StaticIntFuncBool}); },
+            []() { return TryInvoke(int_std_func_int_bool{StaticIntFuncIntBool}); },
         };
 
         RunTestGeneric(tests);
